@@ -1,10 +1,11 @@
 from dataclasses import dataclass
+from email import message
 from functools import partial
 from multiprocessing import Pool
 from multiprocessing.dummy import Array, freeze_support
 import threading
 import traceback
-from typing import Callable, Optional, Tuple, TypeAlias, TypeVar
+from typing import Callable, Literal, Optional, Tuple, TypeAlias, TypeVar
 from wsgiref.simple_server import WSGIRequestHandler
 import undetected_chromedriver as uc
 from selenium.webdriver.remote.webelement import WebElement
@@ -12,9 +13,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-
-Url: TypeAlias = str
-Method: TypeAlias = Callable[[], None]
+from cookie import work_cookie
+from typtupoi import Logger, Url, Method, LogOptions
 
 def wait_until(driver: uc.Chrome, cond: Callable[[], bool], time: int = 60) -> None:
   WebDriverWait(driver, time).until(lambda driver: cond())
@@ -22,7 +22,7 @@ def wait_until(driver: uc.Chrome, cond: Callable[[], bool], time: int = 60) -> N
 def multiprocessing_start(url: Url, threads: int, func: Callable[[Url], Url | None]):
   urls_list = [url] * threads
   p = Pool(processes=threads)
-  p.map(func, urls_list)
+  p.map(func, urls_list) 
 
 def threading_start(count: int, func: Callable[[int], None], name: str = None) -> None:
   if count <= 1:
@@ -32,14 +32,20 @@ def threading_start(count: int, func: Callable[[int], None], name: str = None) -
   for i in range(count):
     thread = threading.Thread(target=func, args=(i,))
     thread.start()
-    if not name is None:
+    if not name is None: 
       thread.setName(name)
     threadList.append(thread)
   for thread in threadList:
     thread.join()
 
-def printError(ex: Exception, dev: bool = True) -> None:
-  print(ex)
+def defaultErrorLogger(
+  message: str,
+  ex: Exception,
+  logOp: LogOptions,
+  dev: bool = True
+) -> None:
+  logOp = LogOptions(logger=print, message=message) if logOp is None else logOp
+  logOp.logger(logOp.message)
   if dev:
     print(traceback.format_exc())
 
@@ -63,8 +69,10 @@ def new_chrome_script(
     url: Url,
     loadUrl: bool = True,
     driverOptions: uc.ChromeOptions = None,
-    driver: uc.Chrome = None, 
-    printExcept: Callable[[Exception], None] = printError,
+    driver: uc.Chrome = None,
+    errorLogger: Logger = print,
+    errorLogMessage: str = None,
+    cookiePath: Url | None = None,
     script: Callable[[uc.Chrome, uc.ChromeOptions], None] = defaultScript
   ):
   try:
@@ -72,9 +80,12 @@ def new_chrome_script(
     driver = defaultChromeGetter(driverOptions) if driver is None else driver
     if loadUrl and not driver.current_url.startswith(url):
       driver.get(url)
+    if not cookiePath is None:
+      work_cookie(cookiePath, driver, )
     script(driver, driverOptions)
-  except Exception as ex:
-    printExcept(ex)
+  except Exception as err:
+    errorLogMessage = str(err) if errorLogMessage is None else errorLogMessage
+    errorLogger(errorLogMessage)
 
 def mapper(url: Url, scriptFunc: Method) -> list[Url]:
   scriptFunc()
