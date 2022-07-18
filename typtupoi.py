@@ -1,11 +1,12 @@
-from typing import Callable, NamedTuple, TypeAlias
+from typing import Callable, NamedTuple
 
 
-Url: TypeAlias = str
-Method: TypeAlias = Callable[[], None]
+Url = str
+Method = Callable[[], None]
 
 class LogOptions(NamedTuple):
-  logger: Callable[[str], None]
-  message: str
+    logger: Callable[[str], None]
+    message: str
 
-Logger: TypeAlias = Callable[[str], None]
+
+Logger = Callable[[str], None]
